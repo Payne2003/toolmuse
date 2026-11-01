@@ -36,5 +36,7 @@
 .board-job-actions{display:flex;align-items:center;gap:6px;flex-shrink:0}
 .board-sent{display:inline-flex;align-items:center;gap:5px;font-size:10px;color:#a9a3bd;cursor:pointer;white-space:nowrap}
 .board-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
-.pool-link{flex-basis:100%!important}
+.pool-account-settings{flex-wrap:wrap}
+.pool-account-settings label{flex:1 1 140px;min-width:0}
+.pool-account-settings label.pool-link{flex:1 1 100%}
 @media (max-width:640px){.board-job{flex-wrap:wrap}.board-prompt{flex-basis:100%;order:3}.board-account header{flex-wrap:wrap}.board-footer{flex-direction:column}}

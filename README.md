@@ -96,3 +96,5 @@ node queue-core.test.mjs
 Hoặc chạy `npm test`. Không cần `npm install` vì không có dependency.
 
 Các kiểm tra hiện có: tách prompt, giới hạn credit, giới hạn luồng, không giao trùng và không trừ credit khi chỉ lập kế hoạch. Chưa kiểm tra giao diện trực tiếp trên Windows và chưa kiểm tra tích hợp Muse.
+
+# toolmuse

@@ -1,0 +1,7 @@
+# Danh sach tai khoan cho MO_TAI_KHOAN.cmd
+# Moi dong: email, sau do (khong bat buoc) la link hop thu de lay ma, cach nhau bang dau cach hoac Tab.
+# Dong bat dau bang # duoc bo qua.
+# Cach nhanh nhat: trong Muse Studio bam "Tai danh sach cho MO_TAI_KHOAN.cmd".
+# Hoac doi ten file nay thanh tai-khoan.txt roi sua.
+email1@example.com https://hop-thu.example/abc
+email2@example.com

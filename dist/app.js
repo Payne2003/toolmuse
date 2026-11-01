@@ -89,7 +89,7 @@ function renderSidebar(){
 function actionButton(name,label,action,id){return `<button class="icon-btn" title="${label}" aria-label="${label}" data-action="${action}" data-id="${esc(id)}">${icon(name)}</button>`;}
 function jobActions(j){return actionButton('copy','Sao chép prompt','copy',j.id)+actionButton('plus','Nhân bản cảnh','duplicate',j.id)+actionButton('edit','Sửa cảnh','edit',j.id)+(hasResult(j)?actionButton('down','Tải kết quả đã nhập','download',j.id):actionButton('up',j.mode==='generate-image'?'Nhập ảnh đã có':'Nhập video đã có','import',j.id))+actionButton('trash','Xóa cảnh','delete',j.id);}
 function thumb(j,grid=false){return `<button class="${grid?'grid-media':'media-thumb'}" data-action="media" data-id="${esc(j.id)}" aria-label="Xem media cảnh">${(j.outputImage||j.image)?`<img data-media="${esc((j.outputImage||j.image).id)}" alt="Ảnh tham chiếu" hidden>`:''}<span class="thumb-fallback">${icon(j.video?'play':(j.outputImage||j.image||j.mode==='generate-image')?'image':'film')}</span></button>`;}
-function statusBadge(j){return `<span class="row-status ${hasResult(j)?'imported':''}"><i></i>${hasResult(j)?'Đã nhập kết quả':j.assignment?'Đã xếp luồng':'Bản nháp'}</span>`;}
+function statusBadge(j){return `<span class="row-status ${hasResult(j)?'imported':j.sent?'sent':''}"><i></i>${hasResult(j)?'Đã nhập kết quả':j.sent?'Đã gửi trên Muse':j.assignment?'Đã xếp luồng':'Bản nháp'}</span>`;}
 function renderQueue(){
   const version=++renderVersion,jobs=project().jobs,q=$('searchInput').value.toLocaleLowerCase('vi');
   const shown=jobs.filter(j=>(filter==='all'||(filter==='imported'?hasResult(j):!hasResult(j)))&&`${j.prompt} ${j.common||''}`.toLocaleLowerCase('vi').includes(q));
@@ -109,10 +109,11 @@ function renderQueue(){
   }
   for(const j of shown){const imageRef=j.outputImage||j.image;if(imageRef)fileUrl(imageRef).then(url=>{if(!url||version!==renderVersion)return;document.querySelectorAll(`[data-media="${CSS.escape(imageRef.id)}"]`).forEach(img=>{img.src=url;img.hidden=false;img.nextElementSibling.hidden=true;});}).catch(()=>{});}
   renderSidebar();renderLanes();
+  if($('boardDialog').open)renderBoard();
 }
 function syncFilters(){document.querySelectorAll('.filter').forEach(b=>b.classList.toggle('active',b.dataset.filter===filter));}
 function openAccount(){renderAccounts();$('accountsDialog').showModal();}
-for(const id of ['accountBtn','connectSide','noticeConnect','runJobs'])$(id).onclick=openAccount;
+for(const id of ['accountBtn','connectSide','noticeConnect'])$(id).onclick=openAccount;
 $('accountForm').onsubmit=e=>{e.preventDefault();state.email=$('accountEmail').value.trim();if(save())toast(state.email?'Đã lưu email trên thiết bị. Muse vẫn chưa được kết nối.':'Đã xóa email đã lưu.');};
 document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>$(b.dataset.close).close());
 document.querySelectorAll('dialog').forEach(d=>d.addEventListener('click',e=>{if(e.target===d){const r=d.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)d.close();}}));
@@ -180,7 +181,7 @@ function download(blob,name){const url=URL.createObjectURL(blob),a=document.crea
 const safeFilename=value=>value.replace(/[<>:"/\\|?*\x00-\x1F]/g,'_').slice(0,80)||'du-an';
 $('queueContent').onclick=async e=>{const b=e.target.closest('[data-action]');if(!b)return;const j=jobById(b.dataset.id);if(!j)return;switch(b.dataset.action){
   case 'copy':await copyPrompt(j);break;
-  case 'duplicate':{if(project().jobs.length>=1000)return toast('Dự án đã đạt giới hạn 1.000 cảnh.');const duplicate={...structuredClone(j),id:uid(),video:null,outputImage:null,assignment:null,createdAt:new Date().toISOString()};project().jobs.splice(project().jobs.indexOf(j)+1,0,duplicate);save();renderQueue();toast('Đã nhân bản cảnh thành bản nháp.');break;}
+  case 'duplicate':{if(project().jobs.length>=1000)return toast('Dự án đã đạt giới hạn 1.000 cảnh.');const duplicate={...structuredClone(j),id:uid(),video:null,outputImage:null,assignment:null,sent:false,createdAt:new Date().toISOString()};project().jobs.splice(project().jobs.indexOf(j)+1,0,duplicate);save();renderQueue();toast('Đã nhân bản cảnh thành bản nháp.');break;}
   case 'edit':showEdit(j);break;
   case 'delete':deleteJobs(new Set([j.id]));break;
   case 'media':await showMedia(j);break;
@@ -193,12 +194,12 @@ $('exportSelected').onclick=()=>{const jobs=project().jobs.filter(j=>selected.ha
 $('videoFile').onchange=async e=>{
   const file=e.target.files[0],target=project(),j=target.jobs.find(j=>j.id===videoJobId);if(!file||!j)return;
   if(!['video/mp4','video/webm','video/quicktime'].includes(file.type))return toast('Hãy chọn video MP4, WebM hoặc MOV.');if(file.size>250*1024*1024)return toast('Mỗi video tối đa 250 MB.');
-  try{j.video=await putFile(file);j.assignment=null;save();renderQueue();toast('Đã nhập video có sẵn. Đây không phải video được tool tạo.');}catch{toast('Không lưu được video. Trình duyệt có thể đã hết dung lượng.');}
+  try{j.video=await putFile(file);save();renderQueue();toast('Đã nhập video có sẵn. Đây không phải video được tool tạo.');}catch{toast('Không lưu được video. Trình duyệt có thể đã hết dung lượng.');}
 };
 $('importPrompts').onclick=()=>{$('textFile').value='';$('textFile').click();};
 $('textFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;if(f.size>200000)return toast('File prompt tối đa 200 KB.');const t=await f.text();if(t.length>50000)return toast('Tối đa 50.000 ký tự mỗi lần nhập.');$('promptInput').value=t;rememberDraft();updateCounter();toast('Đã nhập nội dung file. Kiểm tra rồi thêm vào hàng đợi.');};
 $('exportBtn').onclick=()=>{
-  const p=project(), payload={format:'huy-studio-project',version:1,name:p.name,exportedAt:new Date().toISOString(),mediaIncluded:false,jobs:p.jobs.map(j=>({...j,image:j.image?{name:j.image.name,type:j.image.type,size:j.image.size}:null,video:j.video?{name:j.video.name,type:j.video.type,size:j.video.size}:null,outputImage:j.outputImage?{name:j.outputImage.name,type:j.outputImage.type,size:j.outputImage.size}:null,assignment:null}))};
+  const p=project(), payload={format:'huy-studio-project',version:1,name:p.name,exportedAt:new Date().toISOString(),mediaIncluded:false,jobs:p.jobs.map(j=>({...j,image:j.image?{name:j.image.name,type:j.image.type,size:j.image.size}:null,video:j.video?{name:j.video.name,type:j.video.type,size:j.video.size}:null,outputImage:j.outputImage?{name:j.outputImage.name,type:j.outputImage.type,size:j.outputImage.size}:null,assignment:null,sent:false}))};
   download(new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),safeFilename(p.name)+'.json');toast('Đã xuất prompt và thông số. File JSON không chứa ảnh/video.');
 };
 $('importProject').onclick=()=>{$('jsonFile').value='';$('jsonFile').click();};
@@ -223,7 +224,9 @@ function accountBadge(job){
   if(!account)return '<span class="unassigned">Chưa phân</span>';
   return `<span class="account-badge" title="${esc(account.email)}">TK ${state.accounts.indexOf(account)+1}</span><div class="row-meta">Luồng ${assignment.lane} · lượt ${assignment.position}</div>`;
 }
-function invalidatePlan(){for(const p of state.projects)for(const j of p.jobs)j.assignment=null;}
+// Jobs already sent on Muse (or finished) keep their account; only pending drafts are re-planned.
+const keepsAssignment=j=>(j.sent||hasResult(j))&&state.accounts.some(a=>a.id===j.assignment?.accountId);
+function invalidatePlan(){for(const p of state.projects)for(const j of p.jobs)if(!keepsAssignment(j)){j.assignment=null;j.sent=false;}}
 function renderLanes(){
   $('accountCount').textContent=state.accounts.length;
   const planned=project().jobs.filter(j=>j.assignment&&!hasResult(j));
@@ -233,13 +236,13 @@ function renderLanes(){
 }
 function renderAccounts(){
   $('costPerJob').value=state.costPerJob||'';
-  $('accountList').innerHTML=state.accounts.length?state.accounts.map((a,i)=>`<div class="pool-account" data-pool-id="${esc(a.id)}"><div class="pool-account-heading"><span class="lane-avatar">${i+1}</span><span class="pool-email"><strong>${esc(a.email)}</strong><small>Phiên đăng nhập: chưa kết nối với tool</small></span><label class="account-toggle"><input type="checkbox" data-pool-enable ${a.enabled?'checked':''} aria-label="Bật tài khoản ${i+1}">Dùng</label><button class="icon-btn" data-pool-delete aria-label="Xóa tài khoản ${i+1}">${icon('trash')}</button></div><div class="pool-account-settings"><label>Credit nhập tay<input data-pool-credits type="number" min="0" step="0.01" value="${a.credits??''}" placeholder="Chưa biết" aria-label="Credit tài khoản ${i+1}"></label><label>Số luồng dự kiến<select data-pool-threads aria-label="Luồng tài khoản ${i+1}">${[1,2,3,4].map(n=>`<option value="${n}" ${a.concurrency===n?'selected':''}>${n} luồng</option>`).join('')}</select></label><button class="button" data-pool-login>${icon('external')}Email & OTP</button></div></div>`).join(''):'<div class="empty-pool">Chưa có tài khoản. Thêm email đầu tiên bên dưới.</div>';
+  $('accountList').innerHTML=state.accounts.length?state.accounts.map((a,i)=>`<div class="pool-account" data-pool-id="${esc(a.id)}"><div class="pool-account-heading"><span class="lane-avatar">${i+1}</span><span class="pool-email"><strong>${esc(a.email)}</strong><small>Cửa sổ riêng: MO_TAI_KHOAN.cmd → chọn số ${i+1}</small></span><label class="account-toggle"><input type="checkbox" data-pool-enable ${a.enabled?'checked':''} aria-label="Bật tài khoản ${i+1}">Dùng</label><button class="icon-btn" data-pool-delete aria-label="Xóa tài khoản ${i+1}">${icon('trash')}</button></div><div class="pool-account-settings"><label>Credit nhập tay<input data-pool-credits type="number" min="0" step="0.01" value="${a.credits??''}" placeholder="Chưa biết" aria-label="Credit tài khoản ${i+1}"></label><label>Số luồng dự kiến<select data-pool-threads aria-label="Luồng tài khoản ${i+1}">${[1,2,3,4].map(n=>`<option value="${n}" ${a.concurrency===n?'selected':''}>${n} luồng</option>`).join('')}</select></label><label class="pool-link">Link hộp thư lấy mã<input data-pool-link type="url" maxlength="2000" value="${esc(a.mailLink||'')}" placeholder="https://… (không bắt buộc)" aria-label="Link lấy mã tài khoản ${i+1}"></label></div></div>`).join(''):'<div class="empty-pool">Chưa có tài khoản. Thêm email đầu tiên bên dưới.</div>';
   $('accountList').querySelectorAll('[data-pool-id]').forEach(row=>{
     const a=state.accounts.find(x=>x.id===row.dataset.poolId);
     row.querySelector('[data-pool-enable]').onchange=e=>{a.enabled=e.target.checked;invalidatePlan();save();renderQueue();};
     row.querySelector('[data-pool-credits]').onchange=e=>{const raw=e.target.value,value=raw===''?null:Number(raw);if(value!==null&&(!Number.isFinite(value)||value<0)){e.target.value=a.credits??'';return toast('Credit phải là số không âm.');}a.credits=value;invalidatePlan();save();renderQueue();};
     row.querySelector('[data-pool-threads]').onchange=e=>{a.concurrency=Number(e.target.value);invalidatePlan();save();renderQueue();};
-    row.querySelector('[data-pool-login]').onclick=()=>{$('accountsDialog').close();$('accountEmail').value=a.email;$('accountDialog').showModal();};
+    row.querySelector('[data-pool-link]').onchange=e=>{const v=e.target.value.trim();if(v&&!validLink(v)){e.target.value=a.mailLink||'';return toast('Link phải bắt đầu bằng http:// hoặc https://');}a.mailLink=v;save();toast(v?'Đã lưu link lấy mã. Tải lại danh sách cho MO_TAI_KHOAN.cmd để cập nhật.':'Đã xóa link lấy mã.');};
     row.querySelector('[data-pool-delete]').onclick=()=>{const index=state.accounts.indexOf(a);state.accounts.splice(index,1);invalidatePlan();save();renderAccounts();renderQueue();toast('Đã bỏ tài khoản khỏi kế hoạch.',()=>{state.accounts.splice(index,0,a);save();renderAccounts();renderQueue();});};
   });
 }
@@ -252,21 +255,70 @@ $('poolForm').onsubmit=e=>{
 $('poolLoginHelp').onclick=()=>{$('accountsDialog').close();$('accountEmail').value=state.email||'';$('accountDialog').showModal();};
 $('costPerJob').onchange=()=>{const raw=$('costPerJob').value,value=raw===''?null:Number(raw);if(value!==null&&(!Number.isFinite(value)||value<=0)){return toast('Nhập số credit lớn hơn 0.');}state.costPerJob=value;invalidatePlan();save();renderQueue();};
 function planCurrent(){
-  if(!project().jobs.some(j=>!hasResult(j)))return toast('Thêm tác vụ chưa có kết quả trước khi xếp luồng.');
-  if(!state.accounts.length||!state.costPerJob){openAccount();return toast('Thêm tài khoản, số dư và chi phí dự kiến để xếp luồng.');}
+  if(!project().jobs.some(j=>!hasResult(j)&&!j.sent)){toast('Không còn cảnh nháp nào cần xếp luồng.');return false;}
+  if(!state.accounts.length||!state.costPerJob){openAccount();toast('Thêm tài khoản, số dư và chi phí dự kiến để xếp luồng.');return false;}
   try{
     const result=planQueue(project().jobs,state.accounts,state.costPerJob),assignmentByJob=new Map(result.assignments.map(a=>[a.jobId,a]));
-    for(const job of project().jobs)job.assignment=assignmentByJob.get(job.id)||null;
-    save();renderQueue();toast(`Đã xếp ${result.assignments.length} tác vụ; ${result.unassigned.length} tác vụ thiếu credit dự kiến. Chưa chạy trên Muse.`);
+    for(const job of project().jobs)if(!keepsAssignment(job))job.assignment=assignmentByJob.get(job.id)||null;
+    save();renderQueue();toast(`Đã xếp ${result.assignments.length} tác vụ; ${result.unassigned.length} tác vụ thiếu credit dự kiến.`);return true;
   }catch(e){toast(e.message);}
+  return false;
 }
-$('planJobs').onclick=planCurrent;
+$('planJobs').onclick=()=>planCurrent();
 $('addAndPlan').onclick=async()=>{const p=project(),before=p.jobs.length;await $('addJobs').onclick();if(p.jobs.length>before)planCurrent();};
 $('resultImageFile').onchange=async e=>{
   const file=e.target.files[0],j=jobById(videoJobId);if(!file||!j)return;
   if(!['image/png','image/jpeg','image/webp'].includes(file.type)||file.size>10*1024*1024)return toast('Chọn ảnh PNG/JPG/WebP tối đa 10 MB.');
-  try{const bitmap=await createImageBitmap(file);bitmap.close();j.outputImage=await putFile(file);j.assignment=null;save();renderQueue();toast('Đã nhập ảnh có sẵn, chưa có tác vụ tạo ảnh trên Muse.');}catch{toast('Không đọc hoặc lưu được ảnh.');}
+  try{const bitmap=await createImageBitmap(file);bitmap.close();j.outputImage=await putFile(file);save();renderQueue();toast('Đã nhập ảnh có sẵn, chưa có tác vụ tạo ảnh trên Muse.');}catch{toast('Không đọc hoặc lưu được ảnh.');}
 };
+// ---- Danh sách cho MO_TAI_KHOAN.cmd: số thứ tự trùng với "Tài khoản N" trong tool ----
+$('exportProfiles').onclick=()=>{
+  if(!state.accounts.length)return toast('Thêm ít nhất một tài khoản trước.');
+  const lines=['# Danh sach cho MO_TAI_KHOAN.cmd - tao tu Muse Studio '+new Date().toLocaleString('vi-VN'),'# Moi dong: email [link lay ma]. So thu tu = "Tai khoan N" trong Muse Studio.',...state.accounts.map(a=>[a.email,a.mailLink||''].filter(Boolean).join('\t'))];
+  download(new Blob([lines.join('\r\n')+'\r\n'],{type:'text/plain;charset=utf-8'}),'tai-khoan.txt');
+  toast('Đã tải tai-khoan.txt. Chạy MO_TAI_KHOAN.cmd — script tự tìm file trong Downloads.');
+};
+// ---- Bảng điều phối: người dùng tự dán prompt và bấm tạo trong cửa sổ riêng của từng tài khoản ----
+const sceneNo=j=>String(project().jobs.indexOf(j)+1).padStart(2,'0');
+const accountNo=a=>state.accounts.indexOf(a)+1;
+function boardGroups(){
+  const jobs=project().jobs,groups=state.accounts.map(a=>({account:a,jobs:jobs.filter(j=>j.assignment?.accountId===a.id).sort((x,y)=>x.assignment.lane-y.assignment.lane||x.assignment.position-y.assignment.position)})).filter(g=>g.jobs.length);
+  return {groups,unassigned:jobs.filter(j=>!j.assignment&&!hasResult(j))};
+}
+function renderBoard(){
+  const {groups,unassigned}=boardGroups(),all=groups.flatMap(g=>g.jobs);
+  const sent=all.filter(j=>j.sent||hasResult(j)).length,done=all.filter(hasResult).length;
+  $('boardSummary').innerHTML=`<span><b>${all.length}</b> cảnh đã phân</span><span><b>${sent}</b> đã gửi</span><span><b>${done}</b> có kết quả</span><span class="${unassigned.length?'warn':''}"><b>${unassigned.length}</b> chưa phân</span>`;
+  if(!groups.length){$('boardContent').innerHTML=`<div class="empty-pool">Chưa có cảnh nào được phân cho tài khoản. Bấm <b>Xếp lại luồng</b> (cần tài khoản, credit và chi phí mỗi tác vụ).</div>`;return;}
+  $('boardContent').innerHTML=groups.map(({account:a,jobs})=>{
+    const n=accountNo(a),pending=jobs.filter(j=>!j.sent&&!hasResult(j)).length,finished=jobs.filter(hasResult).length;
+    return `<section class="board-account"><header><span class="lane-avatar">${n}</span><div class="board-account-name"><strong>Tài khoản ${n}</strong><small>${esc(a.email)}</small><small>Cửa sổ: MO_TAI_KHOAN.cmd → số ${n}</small></div><div class="board-progress"><b>${jobs.length-pending}/${jobs.length}</b> đã gửi · ${finished} xong</div></header>
+    <div class="board-account-actions"><button class="button" data-board-email="${esc(a.id)}">${icon('copy')}Sao chép email</button>${a.mailLink?`<a class="button" href="${esc(a.mailLink)}" target="_blank" rel="noopener noreferrer">${icon('external')}Mở link lấy mã</a>`:''}<button class="button primary" data-board-next="${esc(a.id)}" ${pending?'':'disabled'}>${icon('copy')}Sao chép prompt kế tiếp</button></div>
+    <ol class="board-jobs">${jobs.map(j=>{const st=hasResult(j)?'done':j.sent?'sent':'';return `<li class="board-job ${st}"><span class="row-number">#${sceneNo(j)}</span><span class="board-lane" title="Luồng ${j.assignment.lane}, lượt ${j.assignment.position}">L${j.assignment.lane}·${j.assignment.position}</span><div class="board-prompt">${esc(j.prompt)}${j.common?`<small>+ quy tắc chung</small>`:''}</div><div class="board-job-actions"><button class="icon-btn" data-board-copy="${esc(j.id)}" title="Sao chép prompt" aria-label="Sao chép prompt cảnh ${sceneNo(j)}">${icon('copy')}</button>${hasResult(j)?`<span class="row-status imported"><i></i>Đã có kết quả</span>`:`<label class="board-sent"><input type="checkbox" data-board-sent="${esc(j.id)}" ${j.sent?'checked':''}>Đã gửi</label><button class="icon-btn" data-board-import="${esc(j.id)}" title="Nhập kết quả đã tải về" aria-label="Nhập kết quả cảnh ${sceneNo(j)}">${icon('up')}</button>`}</div></li>`;}).join('')}</ol></section>`;
+  }).join('')+(unassigned.length?`<div class="account-note">${icon('info')}<p>${unassigned.length} cảnh chưa được phân (thiếu credit dự kiến hoặc chưa xếp luồng). Cập nhật credit rồi bấm <b>Xếp lại luồng</b>.</p></div>`:'');
+}
+async function copyFromBoard(j){
+  const a=state.accounts.find(x=>x.id===j.assignment?.accountId);
+  try{await navigator.clipboard.writeText(fullPrompt(j));toast(`Đã sao chép cảnh ${sceneNo(j)} — dán vào cửa sổ Tài khoản ${a?accountNo(a):'?'}, bấm tạo rồi tick “Đã gửi”.`);}
+  catch{toast('Trình duyệt chặn sao chép. Mở cảnh bằng nút Sửa trong hàng đợi để chọn và sao chép.');}
+}
+$('boardContent').onclick=async e=>{
+  const t=e.target.closest('[data-board-copy],[data-board-next],[data-board-email],[data-board-import]');if(!t)return;
+  if(t.dataset.boardEmail){const a=state.accounts.find(x=>x.id===t.dataset.boardEmail);if(!a)return;try{await navigator.clipboard.writeText(a.email);toast('Đã sao chép email. Dán vào trang đăng nhập Muse.');}catch{toast(a.email);}return;}
+  if(t.dataset.boardNext){const g=boardGroups().groups.find(x=>x.account.id===t.dataset.boardNext),j=g?.jobs.find(x=>!x.sent&&!hasResult(x));if(j)await copyFromBoard(j);return;}
+  const j=jobById(t.dataset.boardCopy||t.dataset.boardImport);if(!j)return;
+  if(t.dataset.boardCopy)return copyFromBoard(j);
+  videoJobId=j.id;const input=$(j.mode==='generate-image'?'resultImageFile':'videoFile');input.value='';input.click();
+};
+$('boardContent').onchange=e=>{const box=e.target.closest('[data-board-sent]');if(!box)return;const j=jobById(box.dataset.boardSent);if(!j)return;j.sent=box.checked;j.sentAt=box.checked?new Date().toISOString():null;save();renderQueue();};
+function openBoard(){renderBoard();if(!$('boardDialog').open)$('boardDialog').showModal();}
+$('runJobs').onclick=()=>{
+  if(!state.accounts.length)return openAccount();
+  if(!project().jobs.some(j=>j.assignment)&&!planCurrent())return;
+  openBoard();
+};
+$('boardReplan').onclick=()=>{planCurrent();if(!$('accountsDialog').open)renderBoard();};
+$('boardAccounts').onclick=()=>{$('boardDialog').close();openAccount();};
 window.addEventListener('beforeunload',()=>{if(stagedUrl)URL.revokeObjectURL(stagedUrl);for(const url of assetUrls.values())URL.revokeObjectURL(url);});
 // Remove orphaned local media from previously deleted scenes on the next launch.
 pruneFiles();loadDraft();renderQueue();

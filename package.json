@@ -1,0 +1,10 @@
+{
+  "name": "muse-studio",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Local-first interface and queue planning for AI media projects. Muse generation is not connected.",
+  "scripts": {
+    "test": "node queue-core.test.mjs"
+  }
+}

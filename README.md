@@ -49,8 +49,46 @@ Nếu cổng 8765 đang được ứng dụng khác sử dụng, thay số cổn
 | `package.json` | Khai báo JavaScript module và lệnh kiểm tra |
 | `CHAY_TREN_WINDOWS.cmd` | Chạy thử trên Windows bằng Python |
 | `.vscode/tasks.json` | Tác vụ chạy thử trong VS Code |
+| `MO_TAI_KHOAN.cmd` + `tools/mo-tai-khoan.ps1` | Mở mỗi tài khoản Muse trong một hồ sơ Chrome/Edge riêng |
+| `tai-khoan.example.txt` | Mẫu danh sách tài khoản cho script |
 
 Trong VS Code có thể dùng **Terminal → Run Task → Chạy Muse Studio (Python)**.
+
+## Dùng nhiều tài khoản Muse (điều phối thủ công)
+
+Tool **không** tự đăng nhập, không đọc mã 6 số và không tự bấm tạo video. Tool giúp bạn:
+mở mỗi tài khoản trong một cửa sổ trình duyệt riêng, chia prompt cho từng tài khoản, và theo dõi tiến độ.
+
+### Bước 1 — Nhập tài khoản vào tool
+
+1. Bấm **Tài khoản** ở góc trên bên phải.
+2. Thêm từng email, credit hiện có và số luồng. Nếu tài khoản có link hộp thư để lấy mã, dán vào ô **Link hộp thư lấy mã**.
+3. Nhập **Credit dự kiến / tác vụ**.
+4. Bấm **Tải danh sách cho MO_TAI_KHOAN.cmd**. File `tai-khoan.txt` sẽ nằm trong thư mục Downloads.
+
+### Bước 2 — Mở mỗi tài khoản trong một cửa sổ riêng
+
+1. Nhấp đúp **`MO_TAI_KHOAN.cmd`** trong thư mục dự án (cần Google Chrome hoặc Microsoft Edge).
+2. Script tự tìm `tai-khoan.txt` (trong thư mục dự án, hoặc file mới nhất trong Downloads) và hiện danh sách đánh số.
+   Số thứ tự trùng với **Tài khoản 1, 2, 3…** trong tool.
+3. Gõ số cần mở: `1`, `1 3 5`, `1-4`, hoặc `A` để mở tất cả. Gõ `Q` để thoát.
+4. **Lần đầu** với mỗi tài khoản: trên trang muse.ai nhập email → mở link hộp thư (script mở kèm nếu có) → lấy mã 6 số → nhập vào Muse.
+5. **Các lần sau** cửa sổ đó đã nhớ đăng nhập, không cần nhập mã lại (trừ khi Muse đăng xuất).
+
+Mỗi tài khoản có hồ sơ trình duyệt riêng tại `%LOCALAPPDATA%\MuseStudio\profiles\<email>`. Vì vậy 10 cửa sổ mở cùng lúc không đè đăng nhập của nhau.
+Để đăng xuất hẳn một tài khoản khỏi máy, đóng cửa sổ đó rồi xóa thư mục hồ sơ tương ứng.
+Mẹo: trong mỗi cửa sổ, bấm biểu tượng hồ sơ → **Tùy chỉnh** để đặt tên/màu (ví dụ "TK 3") cho dễ phân biệt.
+
+Muốn tự sửa danh sách bằng tay: xem mẫu `tai-khoan.example.txt` (mỗi dòng: `email [link lấy mã]`).
+`tai-khoan.txt` đã được đưa vào `.gitignore` để email không bị đẩy lên GitHub.
+
+### Bước 3 — Điều phối
+
+1. Nhập prompt và bấm **Thêm vào hàng đợi**.
+2. Bấm **Điều phối**. Tool tự xếp luồng (nếu chưa xếp) và mở **Bảng điều phối**: mỗi tài khoản có danh sách cảnh riêng.
+3. Với từng tài khoản: bấm **Sao chép prompt kế tiếp** → dán vào Muse trong **đúng cửa sổ của tài khoản đó** → bấm tạo → tick **Đã gửi**.
+4. Khi video xong, tải về máy rồi bấm nút nhập (mũi tên lên) ở cảnh đó.
+5. Khi credit thay đổi, sửa số credit trong **Tài khoản** rồi bấm **Xếp lại luồng**. Cảnh đã gửi giữ nguyên tài khoản, chỉ các cảnh chưa gửi được chia lại.
 
 ## Đang hoạt động
 
@@ -62,14 +100,14 @@ Trong VS Code có thể dùng **Terminal → Run Task → Chạy Muse Studio (Py
 - Lập kế hoạch phân luồng theo credit dự kiến: bỏ qua tài khoản tắt, hết credit hoặc chưa biết số dư; không giao trùng tác vụ và không trừ credit thật.
 - Chỉnh sửa, sao chép, nhân bản, tìm kiếm, lọc, xóa/hoàn tác.
 - Xuất/nhập dự án JSON, xuất prompt TXT.
+- Mở mỗi tài khoản trong hồ sơ trình duyệt riêng (`MO_TAI_KHOAN.cmd`).
+- Bảng điều phối: sao chép prompt kế tiếp cho từng tài khoản, đánh dấu đã gửi, nhập kết quả.
 
 ## Chưa hoàn thành
 
-- Chưa đăng nhập nhiều tài khoản Muse bằng các phiên độc lập trong tool.
-- Chưa gửi hoặc xác thực OTP từ tool.
+- Tool không tự đăng nhập, không đọc hay nhập mã 6 số (bạn làm trên trang Muse).
 - Chưa đọc số credit thật từ Muse.
-- Chưa tự gửi yêu cầu tạo ảnh/video, theo dõi tiến độ hoặc tải kết quả từ Muse.
-- Nút “Chạy” hiện mở phần thiết lập tài khoản; không gửi tác vụ thật.
+- Không tự gửi yêu cầu tạo ảnh/video, theo dõi tiến độ hoặc tải kết quả từ Muse.
 - “Xếp luồng thử” chỉ tính kế hoạch cho dự án đang chọn, không chạy nền.
 
 Ba tab tạo nội dung là các chế độ chuẩn bị yêu cầu. Chúng chưa kết nối dịch vụ tạo nội dung. Số luồng, chi phí và thời lượng trong giao diện chưa được đối chiếu với giới hạn Muse thực tế.

@@ -11,7 +11,7 @@ export function planQueue(jobs,accounts,costPerJob){
   const pool=accounts.filter(a=>a.enabled&&Number.isFinite(a.credits)&&a.credits>=cost).map(a=>({id:a.id,remaining:a.credits,lanes:Array.from({length:Math.max(1,Math.min(4,Math.floor(Number(a.concurrency)||1)))},()=>0),reserved:0}));
   const assignments=[];const unassigned=[];
   for(const job of jobs){
-    if(job.video||job.outputImage)continue;
+    if(job.video||job.outputImage||job.sent)continue;
     const candidates=pool.filter(a=>a.remaining+1e-9>=cost).sort((a,b)=>Math.min(...a.lanes)-Math.min(...b.lanes)||a.lanes.reduce((x,y)=>x+y,0)/a.lanes.length-b.lanes.reduce((x,y)=>x+y,0)/b.lanes.length||accounts.findIndex(x=>x.id===a.id)-accounts.findIndex(x=>x.id===b.id));
     if(!candidates.length){unassigned.push(job.id);continue;}
     const account=candidates[0];const index=account.lanes.indexOf(Math.min(...account.lanes));

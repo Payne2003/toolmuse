@@ -14,6 +14,7 @@ assert.ok(p.assignments.filter(a=>a.accountId==='a').every(a=>a.lane<=2));
 assert.ok(p.assignments.filter(a=>a.accountId==='b').every(a=>a.lane===1));
 assert.equal(accounts[0].credits,6,'Planning must not deduct actual credits');
 assert.deepEqual(planQueue([{id:'done',video:{id:'video'}}],accounts,2).assignments,[]);
+assert.deepEqual(planQueue([{id:'sent',sent:true}],accounts,2).assignments,[],'Jobs already sent on Muse are not re-planned');
 assert.throws(()=>planQueue(jobs,accounts,0));assert.throws(()=>planQueue(jobs,accounts,NaN));
 assert.equal(planQueue(jobs,[],1).unassigned.length,8);
-console.log('Queue checks passed: prompt splitting, credit reservation, thread bounds, no duplicates, and no actual credit deduction.');
+console.log('Queue checks passed: prompt splitting, credit reservation, thread bounds, no duplicates, sent jobs skipped, and no actual credit deduction.');

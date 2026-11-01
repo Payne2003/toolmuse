@@ -4,3 +4,6 @@ node_modules/
 __pycache__/
 *.log
 .DS_Store
+
+# Danh sach email that, khong dua len GitHub
+tai-khoan.txt

@@ -89,7 +89,12 @@ function renderSidebar(){
 function actionButton(name,label,action,id){return `<button class="icon-btn" title="${label}" aria-label="${label}" data-action="${action}" data-id="${esc(id)}">${icon(name)}</button>`;}
 function jobActions(j){return actionButton('copy','Sao chép prompt','copy',j.id)+actionButton('plus','Nhân bản cảnh','duplicate',j.id)+actionButton('edit','Sửa cảnh','edit',j.id)+(hasResult(j)?actionButton('down','Tải kết quả đã nhập','download',j.id):actionButton('up',j.mode==='generate-image'?'Nhập ảnh đã có':'Nhập video đã có','import',j.id))+actionButton('trash','Xóa cảnh','delete',j.id);}
 function thumb(j,grid=false){return `<button class="${grid?'grid-media':'media-thumb'}" data-action="media" data-id="${esc(j.id)}" aria-label="Xem media cảnh">${(j.outputImage||j.image)?`<img data-media="${esc((j.outputImage||j.image).id)}" alt="Ảnh tham chiếu" hidden>`:''}<span class="thumb-fallback">${icon(j.video?'play':(j.outputImage||j.image||j.mode==='generate-image')?'image':'film')}</span></button>`;}
-function statusBadge(j){return `<span class="row-status ${hasResult(j)?'imported':j.sent?'sent':''}"><i></i>${hasResult(j)?'Đã nhập kết quả':j.sent?'Đã gửi trên Muse':j.assignment?'Đã xếp luồng':'Bản nháp'}</span>`;}
+// Trạng thái chạy do người dùng cập nhật (tool không tự gửi lên Muse). Có file kết quả = Xong.
+const RUN={waiting:'Chờ',running:'Đang chạy',done:'Xong',error:'Lỗi'};
+const runStatus=j=>hasResult(j)?'done':Object.hasOwn(RUN,j.runStatus||'')?j.runStatus:(j.sent?'running':'waiting');
+function setRunStatus(j,value){j.runStatus=value;j.sent=value!=='waiting';if(value==='waiting')j.sentAt=null;else if(!j.sentAt)j.sentAt=new Date().toISOString();}
+const STATUS_CLASS={done:'imported',running:'sent',error:'error',waiting:''};
+function statusBadge(j){const st=runStatus(j),label=st==='waiting'&&!j.assignment?'Bản nháp':RUN[st];return `<span class="row-status ${STATUS_CLASS[st]}"><i></i>${label}</span>`;}
 function renderQueue(){
   const version=++renderVersion,jobs=project().jobs,q=$('searchInput').value.toLocaleLowerCase('vi');
   const shown=jobs.filter(j=>(filter==='all'||(filter==='imported'?hasResult(j):!hasResult(j)))&&`${j.prompt} ${j.common||''}`.toLocaleLowerCase('vi').includes(q));
@@ -181,7 +186,7 @@ function download(blob,name){const url=URL.createObjectURL(blob),a=document.crea
 const safeFilename=value=>value.replace(/[<>:"/\\|?*\x00-\x1F]/g,'_').slice(0,80)||'du-an';
 $('queueContent').onclick=async e=>{const b=e.target.closest('[data-action]');if(!b)return;const j=jobById(b.dataset.id);if(!j)return;switch(b.dataset.action){
   case 'copy':await copyPrompt(j);break;
-  case 'duplicate':{if(project().jobs.length>=1000)return toast('Dự án đã đạt giới hạn 1.000 cảnh.');const duplicate={...structuredClone(j),id:uid(),video:null,outputImage:null,assignment:null,sent:false,createdAt:new Date().toISOString()};project().jobs.splice(project().jobs.indexOf(j)+1,0,duplicate);save();renderQueue();toast('Đã nhân bản cảnh thành bản nháp.');break;}
+  case 'duplicate':{if(project().jobs.length>=1000)return toast('Dự án đã đạt giới hạn 1.000 cảnh.');const duplicate={...structuredClone(j),id:uid(),video:null,outputImage:null,assignment:null,sent:false,runStatus:null,sentAt:null,createdAt:new Date().toISOString()};project().jobs.splice(project().jobs.indexOf(j)+1,0,duplicate);save();renderQueue();toast('Đã nhân bản cảnh thành bản nháp.');break;}
   case 'edit':showEdit(j);break;
   case 'delete':deleteJobs(new Set([j.id]));break;
   case 'media':await showMedia(j);break;
@@ -194,12 +199,12 @@ $('exportSelected').onclick=()=>{const jobs=project().jobs.filter(j=>selected.ha
 $('videoFile').onchange=async e=>{
   const file=e.target.files[0],target=project(),j=target.jobs.find(j=>j.id===videoJobId);if(!file||!j)return;
   if(!['video/mp4','video/webm','video/quicktime'].includes(file.type))return toast('Hãy chọn video MP4, WebM hoặc MOV.');if(file.size>250*1024*1024)return toast('Mỗi video tối đa 250 MB.');
-  try{j.video=await putFile(file);save();renderQueue();toast('Đã nhập video có sẵn. Đây không phải video được tool tạo.');}catch{toast('Không lưu được video. Trình duyệt có thể đã hết dung lượng.');}
+  try{j.video=await putFile(file);setRunStatus(j,'done');save();renderQueue();toast('Đã nhập video có sẵn. Đây không phải video được tool tạo.');}catch{toast('Không lưu được video. Trình duyệt có thể đã hết dung lượng.');}
 };
 $('importPrompts').onclick=()=>{$('textFile').value='';$('textFile').click();};
 $('textFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;if(f.size>200000)return toast('File prompt tối đa 200 KB.');const t=await f.text();if(t.length>50000)return toast('Tối đa 50.000 ký tự mỗi lần nhập.');$('promptInput').value=t;rememberDraft();updateCounter();toast('Đã nhập nội dung file. Kiểm tra rồi thêm vào hàng đợi.');};
 $('exportBtn').onclick=()=>{
-  const p=project(), payload={format:'huy-studio-project',version:1,name:p.name,exportedAt:new Date().toISOString(),mediaIncluded:false,jobs:p.jobs.map(j=>({...j,image:j.image?{name:j.image.name,type:j.image.type,size:j.image.size}:null,video:j.video?{name:j.video.name,type:j.video.type,size:j.video.size}:null,outputImage:j.outputImage?{name:j.outputImage.name,type:j.outputImage.type,size:j.outputImage.size}:null,assignment:null,sent:false}))};
+  const p=project(), payload={format:'huy-studio-project',version:1,name:p.name,exportedAt:new Date().toISOString(),mediaIncluded:false,jobs:p.jobs.map(j=>({...j,image:j.image?{name:j.image.name,type:j.image.type,size:j.image.size}:null,video:j.video?{name:j.video.name,type:j.video.type,size:j.video.size}:null,outputImage:j.outputImage?{name:j.outputImage.name,type:j.outputImage.type,size:j.outputImage.size}:null,assignment:null,sent:false,runStatus:null,sentAt:null}))};
   download(new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),safeFilename(p.name)+'.json');toast('Đã xuất prompt và thông số. File JSON không chứa ảnh/video.');
 };
 $('importProject').onclick=()=>{$('jsonFile').value='';$('jsonFile').click();};
@@ -226,7 +231,7 @@ function accountBadge(job){
 }
 // Jobs already sent on Muse (or finished) keep their account; only pending drafts are re-planned.
 const keepsAssignment=j=>(j.sent||hasResult(j))&&state.accounts.some(a=>a.id===j.assignment?.accountId);
-function invalidatePlan(){for(const p of state.projects)for(const j of p.jobs)if(!keepsAssignment(j)){j.assignment=null;j.sent=false;}}
+function invalidatePlan(){for(const p of state.projects)for(const j of p.jobs)if(!keepsAssignment(j)){j.assignment=null;j.sent=false;j.runStatus=null;j.sentAt=null;}}
 function renderLanes(){
   $('accountCount').textContent=state.accounts.length;
   const planned=project().jobs.filter(j=>j.assignment&&!hasResult(j));
@@ -235,7 +240,7 @@ function renderLanes(){
   $('laneStrip').querySelectorAll('[data-open-pool]').forEach(b=>b.onclick=openAccount);
 }
 function renderAccounts(){
-  $('costPerJob').value=state.costPerJob||'';
+  $('costPerJob').value=state.costPerJob||'';$('downloadPath').value=state.downloadPath||'';
   $('accountList').innerHTML=state.accounts.length?state.accounts.map((a,i)=>`<div class="pool-account" data-pool-id="${esc(a.id)}"><div class="pool-account-heading"><span class="lane-avatar">${i+1}</span><span class="pool-email"><strong>${esc(a.email)}</strong><small>Cửa sổ riêng: MO_TAI_KHOAN.cmd → chọn số ${i+1}</small></span><label class="account-toggle"><input type="checkbox" data-pool-enable ${a.enabled?'checked':''} aria-label="Bật tài khoản ${i+1}">Dùng</label><button class="icon-btn" data-pool-delete aria-label="Xóa tài khoản ${i+1}">${icon('trash')}</button></div><div class="pool-account-settings"><label>Credit nhập tay<input data-pool-credits type="number" min="0" step="0.01" value="${a.credits??''}" placeholder="Chưa biết" aria-label="Credit tài khoản ${i+1}"></label><label>Số luồng dự kiến<select data-pool-threads aria-label="Luồng tài khoản ${i+1}">${[1,2,3,4].map(n=>`<option value="${n}" ${a.concurrency===n?'selected':''}>${n} luồng</option>`).join('')}</select></label><label class="pool-link">Link hộp thư lấy mã<input data-pool-link type="url" maxlength="2000" value="${esc(a.mailLink||'')}" placeholder="https://… (không bắt buộc)" aria-label="Link lấy mã tài khoản ${i+1}"></label></div></div>`).join(''):'<div class="empty-pool">Chưa có tài khoản. Thêm email đầu tiên bên dưới.</div>';
   $('accountList').querySelectorAll('[data-pool-id]').forEach(row=>{
     const a=state.accounts.find(x=>x.id===row.dataset.poolId);
@@ -246,6 +251,7 @@ function renderAccounts(){
     row.querySelector('[data-pool-delete]').onclick=()=>{const index=state.accounts.indexOf(a);state.accounts.splice(index,1);invalidatePlan();save();renderAccounts();renderQueue();toast('Đã bỏ tài khoản khỏi kế hoạch.',()=>{state.accounts.splice(index,0,a);save();renderAccounts();renderQueue();});};
   });
 }
+$('downloadPath').onchange=()=>{const v=$('downloadPath').value.trim().replace(/[\\/]+$/,'');if(v&&!/^([A-Za-z]:\\|\\\\)[^<>"|?*]*$/.test(v)){$('downloadPath').value=state.downloadPath||'';return toast('Nhập đường dẫn đầy đủ trên Windows, ví dụ D:\\Video Muse');}state.downloadPath=v;$('downloadPath').value=v;save();toast(v?'Đã lưu. Bấm “Tải danh sách cho MO_TAI_KHOAN.cmd” để cập nhật cho các cửa sổ.':'Đã bỏ thư mục tải về.');};
 $('poolForm').onsubmit=e=>{
   e.preventDefault();const email=$('poolEmail').value.trim().toLowerCase();if(state.accounts.some(a=>a.email.toLowerCase()===email))return toast('Email này đã có trong danh sách.');
   if(state.accounts.length>=20)return toast('Bản thử hỗ trợ tối đa 20 tài khoản.');
@@ -269,12 +275,12 @@ $('addAndPlan').onclick=async()=>{const p=project(),before=p.jobs.length;await $
 $('resultImageFile').onchange=async e=>{
   const file=e.target.files[0],j=jobById(videoJobId);if(!file||!j)return;
   if(!['image/png','image/jpeg','image/webp'].includes(file.type)||file.size>10*1024*1024)return toast('Chọn ảnh PNG/JPG/WebP tối đa 10 MB.');
-  try{const bitmap=await createImageBitmap(file);bitmap.close();j.outputImage=await putFile(file);save();renderQueue();toast('Đã nhập ảnh có sẵn, chưa có tác vụ tạo ảnh trên Muse.');}catch{toast('Không đọc hoặc lưu được ảnh.');}
+  try{const bitmap=await createImageBitmap(file);bitmap.close();j.outputImage=await putFile(file);setRunStatus(j,'done');save();renderQueue();toast('Đã nhập ảnh có sẵn, chưa có tác vụ tạo ảnh trên Muse.');}catch{toast('Không đọc hoặc lưu được ảnh.');}
 };
 // ---- Danh sách cho MO_TAI_KHOAN.cmd: số thứ tự trùng với "Tài khoản N" trong tool ----
 $('exportProfiles').onclick=()=>{
   if(!state.accounts.length)return toast('Thêm ít nhất một tài khoản trước.');
-  const lines=['# Danh sach cho MO_TAI_KHOAN.cmd - tao tu Muse Studio '+new Date().toLocaleString('vi-VN'),'# Moi dong: email [link lay ma]. So thu tu = "Tai khoan N" trong Muse Studio.',...state.accounts.map(a=>[a.email,a.mailLink||''].filter(Boolean).join('\t'))];
+  const lines=['# Danh sach cho MO_TAI_KHOAN.cmd - tao tu Muse Studio '+new Date().toLocaleString('vi-VN'),'# Moi dong: email [link lay ma]. So thu tu = "Tai khoan N" trong Muse Studio.',...(state.downloadPath?['# Video cua tai khoan N tu luu vao <thu-muc>\\TKN','thu-muc='+state.downloadPath]:[]),...state.accounts.map(a=>[a.email,a.mailLink||''].filter(Boolean).join('\t'))];
   download(new Blob([lines.join('\r\n')+'\r\n'],{type:'text/plain;charset=utf-8'}),'tai-khoan.txt');
   toast('Đã tải tai-khoan.txt. Chạy MO_TAI_KHOAN.cmd — script tự tìm file trong Downloads.');
 };
@@ -285,32 +291,38 @@ function boardGroups(){
   const jobs=project().jobs,groups=state.accounts.map(a=>({account:a,jobs:jobs.filter(j=>j.assignment?.accountId===a.id).sort((x,y)=>x.assignment.lane-y.assignment.lane||x.assignment.position-y.assignment.position)})).filter(g=>g.jobs.length);
   return {groups,unassigned:jobs.filter(j=>!j.assignment&&!hasResult(j))};
 }
+const countRun=jobs=>{const c={waiting:0,running:0,done:0,error:0};for(const j of jobs)c[runStatus(j)]++;return c;};
 function renderBoard(){
-  const {groups,unassigned}=boardGroups(),all=groups.flatMap(g=>g.jobs);
-  const sent=all.filter(j=>j.sent||hasResult(j)).length,done=all.filter(hasResult).length;
-  $('boardSummary').innerHTML=`<span><b>${all.length}</b> cảnh đã phân</span><span><b>${sent}</b> đã gửi</span><span><b>${done}</b> có kết quả</span><span class="${unassigned.length?'warn':''}"><b>${unassigned.length}</b> chưa phân</span>`;
+  renderFolder();
+  const {groups,unassigned}=boardGroups(),c=countRun(groups.flatMap(g=>g.jobs));
+  $('boardSummary').innerHTML=`<span class="st-waiting"><b>${c.waiting}</b> Chờ</span><span class="st-running"><b>${c.running}</b> Đang chạy</span><span class="st-done"><b>${c.done}</b> Xong</span><span class="st-error"><b>${c.error}</b> Lỗi</span><span class="${unassigned.length?'warn':''}"><b>${unassigned.length}</b> chưa phân</span>`;
   if(!groups.length){$('boardContent').innerHTML=`<div class="empty-pool">Chưa có cảnh nào được phân cho tài khoản. Bấm <b>Xếp lại luồng</b> (cần tài khoản, credit và chi phí mỗi tác vụ).</div>`;return;}
   $('boardContent').innerHTML=groups.map(({account:a,jobs})=>{
-    const n=accountNo(a),pending=jobs.filter(j=>!j.sent&&!hasResult(j)).length,finished=jobs.filter(hasResult).length;
-    return `<section class="board-account"><header><span class="lane-avatar">${n}</span><div class="board-account-name"><strong>Tài khoản ${n}</strong><small>${esc(a.email)}</small><small>Cửa sổ: MO_TAI_KHOAN.cmd → số ${n}</small></div><div class="board-progress"><b>${jobs.length-pending}/${jobs.length}</b> đã gửi · ${finished} xong</div></header>
-    <div class="board-account-actions"><button class="button" data-board-email="${esc(a.id)}">${icon('copy')}Sao chép email</button>${a.mailLink?`<a class="button" href="${esc(a.mailLink)}" target="_blank" rel="noopener noreferrer">${icon('external')}Mở link lấy mã</a>`:''}<button class="button primary" data-board-next="${esc(a.id)}" ${pending?'':'disabled'}>${icon('copy')}Sao chép prompt kế tiếp</button></div>
-    <ol class="board-jobs">${jobs.map(j=>{const st=hasResult(j)?'done':j.sent?'sent':'';return `<li class="board-job ${st}"><span class="row-number">#${sceneNo(j)}</span><span class="board-lane" title="Luồng ${j.assignment.lane}, lượt ${j.assignment.position}">L${j.assignment.lane}·${j.assignment.position}</span><div class="board-prompt">${esc(j.prompt)}${j.common?`<small>+ quy tắc chung</small>`:''}</div><div class="board-job-actions"><button class="icon-btn" data-board-copy="${esc(j.id)}" title="Sao chép prompt" aria-label="Sao chép prompt cảnh ${sceneNo(j)}">${icon('copy')}</button>${hasResult(j)?`<span class="row-status imported"><i></i>Đã có kết quả</span>`:`<label class="board-sent"><input type="checkbox" data-board-sent="${esc(j.id)}" ${j.sent?'checked':''}>Đã gửi</label><button class="icon-btn" data-board-import="${esc(j.id)}" title="Nhập kết quả đã tải về" aria-label="Nhập kết quả cảnh ${sceneNo(j)}">${icon('up')}</button>`}</div></li>`;}).join('')}</ol></section>`;
+    const n=accountNo(a),k=countRun(jobs);
+    return `<section class="board-account"><header><span class="lane-avatar">${n}</span><div class="board-account-name"><strong>Tài khoản ${n}</strong><small>${esc(a.email)}</small><small>Cửa sổ: MO_TAI_KHOAN.cmd → số ${n}${state.downloadPath?` · tải về: ${esc(state.downloadPath)}\\TK${n}`:''}</small></div><div class="board-progress">${k.waiting} chờ · ${k.running} đang chạy · <b>${k.done}</b> xong${k.error?` · <span class="err">${k.error} lỗi</span>`:''}</div></header>
+    <div class="board-account-actions"><button class="button" data-board-email="${esc(a.id)}">${icon('copy')}Sao chép email</button>${a.mailLink?`<a class="button" href="${esc(a.mailLink)}" target="_blank" rel="noopener noreferrer">${icon('external')}Mở link lấy mã</a>`:''}<button class="button primary" data-board-next="${esc(a.id)}" ${k.waiting?'':'disabled'} title="Sao chép prompt đang Chờ đầu tiên và chuyển nó sang Đang chạy">${icon('copy')}Sao chép prompt kế tiếp</button></div>
+    <ol class="board-jobs">${jobs.map(j=>{const st=runStatus(j);return `<li class="board-job st-${st}"><span class="row-number">#${sceneNo(j)}</span><span class="board-lane" title="Luồng ${j.assignment.lane}, lượt ${j.assignment.position}">L${j.assignment.lane}·${j.assignment.position}</span><div class="board-prompt">${esc(j.prompt)}${j.common?`<small>+ quy tắc chung</small>`:''}</div><div class="board-job-actions"><button class="icon-btn" data-board-copy="${esc(j.id)}" title="Sao chép prompt" aria-label="Sao chép prompt cảnh ${sceneNo(j)}">${icon('copy')}</button>${hasResult(j)?`<button class="icon-btn" data-board-media="${esc(j.id)}" title="Xem kết quả" aria-label="Xem kết quả cảnh ${sceneNo(j)}">${icon('play')}</button><span class="row-status imported"><i></i>Xong</span>`:`<select class="run-select st-${st}" data-board-status="${esc(j.id)}" aria-label="Trạng thái cảnh ${sceneNo(j)}">${Object.entries(RUN).map(([v,l])=>`<option value="${v}" ${v===st?'selected':''}>${l}</option>`).join('')}</select><button class="icon-btn" data-board-import="${esc(j.id)}" title="Nhập kết quả bằng tay" aria-label="Nhập kết quả cảnh ${sceneNo(j)}">${icon('up')}</button>`}</div></li>`;}).join('')}</ol></section>`;
   }).join('')+(unassigned.length?`<div class="account-note">${icon('info')}<p>${unassigned.length} cảnh chưa được phân (thiếu credit dự kiến hoặc chưa xếp luồng). Cập nhật credit rồi bấm <b>Xếp lại luồng</b>.</p></div>`:'');
 }
 async function copyFromBoard(j){
   const a=state.accounts.find(x=>x.id===j.assignment?.accountId);
-  try{await navigator.clipboard.writeText(fullPrompt(j));toast(`Đã sao chép cảnh ${sceneNo(j)} — dán vào cửa sổ Tài khoản ${a?accountNo(a):'?'}, bấm tạo rồi tick “Đã gửi”.`);}
-  catch{toast('Trình duyệt chặn sao chép. Mở cảnh bằng nút Sửa trong hàng đợi để chọn và sao chép.');}
+  try{await navigator.clipboard.writeText(fullPrompt(j));return a?accountNo(a):'?';}
+  catch{toast('Trình duyệt chặn sao chép. Mở cảnh bằng nút Sửa trong hàng đợi để chọn và sao chép.');return null;}
 }
 $('boardContent').onclick=async e=>{
-  const t=e.target.closest('[data-board-copy],[data-board-next],[data-board-email],[data-board-import]');if(!t)return;
+  const t=e.target.closest('[data-board-copy],[data-board-next],[data-board-email],[data-board-import],[data-board-media]');if(!t)return;
   if(t.dataset.boardEmail){const a=state.accounts.find(x=>x.id===t.dataset.boardEmail);if(!a)return;try{await navigator.clipboard.writeText(a.email);toast('Đã sao chép email. Dán vào trang đăng nhập Muse.');}catch{toast(a.email);}return;}
-  if(t.dataset.boardNext){const g=boardGroups().groups.find(x=>x.account.id===t.dataset.boardNext),j=g?.jobs.find(x=>!x.sent&&!hasResult(x));if(j)await copyFromBoard(j);return;}
-  const j=jobById(t.dataset.boardCopy||t.dataset.boardImport);if(!j)return;
-  if(t.dataset.boardCopy)return copyFromBoard(j);
+  if(t.dataset.boardNext){
+    const g=boardGroups().groups.find(x=>x.account.id===t.dataset.boardNext),j=g?.jobs.find(x=>runStatus(x)==='waiting');if(!j)return;
+    const n=await copyFromBoard(j);if(n===null)return;
+    setRunStatus(j,'running');save();renderQueue();toast(`Đã sao chép cảnh ${sceneNo(j)} → dán vào cửa sổ Tài khoản ${n} và bấm tạo. Trạng thái: Đang chạy.`);return;
+  }
+  const j=jobById(t.dataset.boardCopy||t.dataset.boardImport||t.dataset.boardMedia);if(!j)return;
+  if(t.dataset.boardCopy){const n=await copyFromBoard(j);if(n!==null)toast(`Đã sao chép cảnh ${sceneNo(j)} — dán vào cửa sổ Tài khoản ${n}.`);return;}
+  if(t.dataset.boardMedia)return showMedia(j);
   videoJobId=j.id;const input=$(j.mode==='generate-image'?'resultImageFile':'videoFile');input.value='';input.click();
 };
-$('boardContent').onchange=e=>{const box=e.target.closest('[data-board-sent]');if(!box)return;const j=jobById(box.dataset.boardSent);if(!j)return;j.sent=box.checked;j.sentAt=box.checked?new Date().toISOString():null;save();renderQueue();};
+$('boardContent').onchange=e=>{const sel=e.target.closest('[data-board-status]');if(!sel)return;const j=jobById(sel.dataset.boardStatus);if(!j)return;setRunStatus(j,sel.value);save();renderQueue();};
 function openBoard(){renderBoard();if(!$('boardDialog').open)$('boardDialog').showModal();}
 $('runJobs').onclick=()=>{
   if(!state.accounts.length)return openAccount();
@@ -319,6 +331,89 @@ $('runJobs').onclick=()=>{
 };
 $('boardReplan').onclick=()=>{planCurrent();if(!$('accountsDialog').open)renderBoard();};
 $('boardAccounts').onclick=()=>{$('boardDialog').close();openAccount();};
+
+// ---- Thư mục tải về: chọn thư mục, quét video mới, gắn vào cảnh, xuất tất cả ----
+// Dùng File System Access API (Chrome/Edge). Handle được lưu trong IndexedDB riêng để giữ qua các lần mở.
+const settingsDb=new Promise((resolve,reject)=>{const r=indexedDB.open('huy-studio-settings',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
+settingsDb.catch(()=>{});
+async function kv(key,value){const db=await settingsDb;return new Promise((resolve,reject)=>{const tx=db.transaction('kv',value===undefined?'readonly':'readwrite'),store=tx.objectStore('kv');const req=value===undefined?store.get(key):store.put(value,key);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
+let dirHandle=null,scanItems=[];
+kv('downloadDir').then(h=>{dirHandle=h||null;renderFolder();}).catch(()=>{});
+const VIDEO_EXT={mp4:'video/mp4',webm:'video/webm',mov:'video/quicktime'},IMAGE_EXT={png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',webp:'image/webp'};
+const extOf=name=>(name.split('.').pop()||'').toLowerCase();
+function renderFolder(){
+  $('folderName').textContent=dirHandle?(dirHandle.name||'Đã chọn'):'Chưa chọn — bấm Chọn thư mục';
+  for(const id of ['scanFolder','exportVideos'])$(id).disabled=!dirHandle;
+}
+async function folderAllowed(mode){
+  if(!dirHandle)return false;
+  try{if(await dirHandle.queryPermission({mode})==='granted')return true;return await dirHandle.requestPermission({mode})==='granted';}catch{return false;}
+}
+$('pickFolder').onclick=async()=>{
+  if(!window.showDirectoryPicker)return toast('Trình duyệt này không hỗ trợ chọn thư mục. Hãy mở tool bằng Chrome hoặc Edge.');
+  try{dirHandle=await window.showDirectoryPicker({id:'muse-downloads',mode:'readwrite'});await kv('downloadDir',dirHandle);renderFolder();toast(`Đã chọn thư mục “${dirHandle.name}”. Đặt cùng đường dẫn đó trong Tài khoản để cửa sổ Muse tự lưu vào đây.`);}
+  catch(e){if(e?.name!=='AbortError')toast('Không chọn được thư mục này. Hãy chọn thư mục khác (không phải thư mục hệ thống).');}
+};
+async function collectFiles(dir,prefix='',depth=0,out=[]){
+  for await(const [name,h] of dir.entries()){
+    if(h.kind==='directory'){if(depth<1&&!name.startsWith('_')&&!name.startsWith('.'))await collectFiles(h,prefix+name+'/',depth+1,out);continue;}
+    const ext=extOf(name);if(!VIDEO_EXT[ext]&&!IMAGE_EXT[ext])continue;
+    if(name.endsWith('.crdownload')||name.endsWith('.tmp'))continue;
+    out.push({path:prefix+name,handle:h,folder:prefix.split('/')[0]||'',isVideo:Boolean(VIDEO_EXT[ext])});
+  }
+  return out;
+}
+const fileKey=(item,f)=>`${item.path}|${f.size}|${f.lastModified}`;
+const fitsJob=(item,j)=>item.isVideo?j.mode!=='generate-image':j.mode==='generate-image';
+$('scanFolder').onclick=async()=>{
+  if(!await folderAllowed('read'))return toast('Cần cho phép tool đọc thư mục. Bấm Quét lại và chọn “Cho phép”.');
+  const seen=new Set(state.importedFiles||[]);let items;
+  try{items=await collectFiles(dirHandle);}catch{return toast('Không đọc được thư mục. Hãy chọn lại thư mục.');}
+  for(const it of items){const f=await it.handle.getFile();it.file=f;it.key=fileKey(it,f);}
+  items=items.filter(it=>!seen.has(it.key)).sort((a,b)=>a.file.lastModified-b.file.lastModified);
+  // Gợi ý: file trong thư mục con TKn gắn vào cảnh Đang chạy sớm nhất của tài khoản n; file ở thư mục gốc gắn theo thứ tự gửi.
+  const taken=new Set(),open=project().jobs.filter(j=>!hasResult(j)&&['running','error'].includes(runStatus(j))).sort((a,b)=>(runStatus(a)==='running'?0:1)-(runStatus(b)==='running'?0:1)||String(a.sentAt||'').localeCompare(String(b.sentAt||'')));
+  for(const it of items){
+    const m=/^tk(\d+)$/i.exec(it.folder),acc=m?state.accounts[Number(m[1])-1]:null;
+    const j=open.find(j=>!taken.has(j.id)&&fitsJob(it,j)&&(!m||j.assignment?.accountId===acc?.id));
+    it.target=j?.id||'';if(j)taken.add(j.id);
+  }
+  scanItems=items;renderScan();
+  toast(items.length?`Tìm thấy ${items.length} file mới. Kiểm tra cảnh được gợi ý rồi bấm Gắn.`:'Không có file mới trong thư mục.');
+};
+function renderScan(){
+  if(!scanItems.length){$('scanResults').innerHTML='';return;}
+  const candidates=project().jobs.filter(j=>!hasResult(j));
+  const label=j=>{const a=state.accounts.find(x=>x.id===j.assignment?.accountId);return `#${sceneNo(j)}${a?` · TK${accountNo(a)}`:''} · ${RUN[runStatus(j)]} · ${j.prompt.slice(0,40)}`;};
+  $('scanResults').innerHTML=`<div class="scan-list">${scanItems.map((it,i)=>`<div class="scan-item"><span class="scan-file" title="${esc(it.path)}">${icon(it.isVideo?'play':'image')}${esc(it.path)}<small>${(it.file.size/1048576).toFixed(1)} MB · ${new Date(it.file.lastModified).toLocaleString('vi-VN')}</small></span><select data-scan="${i}" aria-label="Gắn ${esc(it.path)} vào cảnh"><option value="">— Bỏ qua —</option>${candidates.filter(j=>fitsJob(it,j)).map(j=>`<option value="${esc(j.id)}" ${j.id===it.target?'selected':''}>${esc(label(j))}</option>`).join('')}</select></div>`).join('')}</div><div class="scan-actions"><button class="button" id="scanIgnore">Bỏ qua tất cả lần sau</button><button class="button primary" id="scanAttach">${icon('check')}Gắn các file đã chọn</button></div>`;
+  $('scanResults').querySelectorAll('[data-scan]').forEach(s=>s.onchange=()=>{scanItems[Number(s.dataset.scan)].target=s.value;});
+  $('scanIgnore').onclick=()=>{rememberFiles(scanItems.map(it=>it.key));scanItems=[];renderScan();toast('Các file này sẽ không hiện lại khi quét.');};
+  $('scanAttach').onclick=attachScanned;
+}
+function rememberFiles(keys){state.importedFiles=[...(state.importedFiles||[]),...keys].slice(-3000);save();}
+async function attachScanned(){
+  const chosen=scanItems.filter(it=>it.target),used=new Set();
+  if(new Set(chosen.map(it=>it.target)).size!==chosen.length)return toast('Có hai file cùng gắn vào một cảnh. Hãy chọn lại.');
+  let ok=0;
+  for(const it of chosen){
+    const j=jobById(it.target);if(!j||hasResult(j))continue;
+    const ext=extOf(it.file.name),type=it.file.type||VIDEO_EXT[ext]||IMAGE_EXT[ext];
+    if(it.file.size>(it.isVideo?250:10)*1024*1024){toast(`${it.path} quá lớn để lưu trong trình duyệt.`);continue;}
+    try{const ref=await putFile(new File([it.file],it.file.name,{type,lastModified:it.file.lastModified}));if(it.isVideo)j.video=ref;else j.outputImage=ref;setRunStatus(j,'done');used.add(it.key);ok++;}
+    catch{toast('Trình duyệt hết dung lượng lưu. Hãy xuất video rồi xóa bớt cảnh cũ.');break;}
+  }
+  rememberFiles([...used]);scanItems=scanItems.filter(it=>!used.has(it.key));save();renderQueue();renderScan();
+  toast(`Đã gắn ${ok} file vào cảnh. Trạng thái: Xong.`);
+}
+$('exportVideos').onclick=async()=>{
+  const jobs=project().jobs.filter(hasResult);if(!jobs.length)return toast('Chưa có cảnh nào có kết quả để xuất.');
+  if(!await folderAllowed('readwrite'))return toast('Cần cho phép tool ghi vào thư mục. Bấm lại và chọn “Cho phép”.');
+  try{
+    const out=await (await dirHandle.getDirectoryHandle('_xuat-video',{create:true})).getDirectoryHandle(safeFilename(project().name),{create:true});let n=0;
+    for(const j of jobs){const ref=j.video||j.outputImage,f=await getFile(ref);if(!f)continue;const w=await (await out.getFileHandle(`canh-${sceneNo(j)}.${extOf(ref.name)||'mp4'}`,{create:true})).createWritable();await w.write(f);await w.close();n++;}
+    toast(`Đã xuất ${n} file vào ${dirHandle.name}\\_xuat-video\\${safeFilename(project().name)}`);
+  }catch{toast('Không ghi được vào thư mục. Kiểm tra quyền hoặc dung lượng ổ đĩa.');}
+};
 window.addEventListener('beforeunload',()=>{if(stagedUrl)URL.revokeObjectURL(stagedUrl);for(const url of assetUrls.values())URL.revokeObjectURL(url);});
 // Remove orphaned local media from previously deleted scenes on the next launch.
 pruneFiles();loadDraft();renderQueue();

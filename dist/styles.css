@@ -40,3 +40,31 @@
 .pool-account-settings label{flex:1 1 140px;min-width:0}
 .pool-account-settings label.pool-link{flex:1 1 100%}
 @media (max-width:640px){.board-job{flex-wrap:wrap}.board-prompt{flex-basis:100%;order:3}.board-account header{flex-wrap:wrap}.board-footer{flex-direction:column}}
+
+.row-status.error{color:#e79a9a;border-color:#5c3333;background:#2c1a1c}
+.board-summary .st-waiting b{color:#d1b07a}.board-summary .st-running b{color:#9fb7e6}.board-summary .st-done b{color:#8fc6b1}.board-summary .st-error b{color:#e79a9a}
+.board-progress .err{color:#e79a9a}
+.board-job.st-running{border-color:#344766;background:#161c29}
+.board-job.st-error{border-color:#5c3333;background:#1f1517}
+.board-job.st-done{opacity:.65}
+.run-select{background:#11111b;border:1px solid #3a3048;border-radius:5px;padding:5px 6px;font-size:10px;color:#d1b07a}
+.run-select.st-running{color:#9fb7e6;border-color:#344766}.run-select.st-error{color:#e79a9a;border-color:#5c3333}.run-select.st-done{color:#8fc6b1}
+.folder-panel{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:16px;padding:12px;border:1px solid #3b3148;border-radius:10px;background:#1e1929}
+.folder-icon{display:grid;place-items:center;width:32px;height:32px;border-radius:8px;background:#322343;color:#c39bee}
+.folder-icon svg{width:16px;height:16px}
+.folder-info{flex:1;min-width:120px}
+.folder-info strong{display:block;font-size:12px;color:#e3dcf2}
+.folder-info small{display:block;font-size:10px;color:#8b7a9d;margin-top:2px}
+.folder-panel .button{font-size:10px;padding:8px 10px}
+.folder-panel .button:disabled{opacity:.45;cursor:default}
+.scan-list{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.scan-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid #2e2a3a;border-radius:7px;background:#14131d}
+.scan-file{flex:1;min-width:0;display:flex;flex-direction:column;font-size:11px;color:#cfc8de;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.scan-file svg{display:none}
+.scan-file small{font-size:9px;color:#7c708d;margin-top:2px}
+.scan-item select{max-width:55%;background:#11111b;border:1px solid #3a3048;border-radius:5px;padding:6px;font-size:10px;color:#c2b7d2}
+.scan-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
+.scan-actions .button{font-size:10px;padding:8px 10px}
+.download-path{margin-top:0}
+.download-path input{width:100%}
+@media (max-width:640px){.scan-item{flex-direction:column;align-items:stretch}.scan-item select{max-width:none}}

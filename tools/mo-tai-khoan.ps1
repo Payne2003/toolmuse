@@ -8,6 +8,7 @@ $ErrorActionPreference = 'Stop'
 $MuseUrl = 'https://muse.ai'
 $ProjectDir = Split-Path -Parent $PSScriptRoot
 $ProfileRoot = Join-Path $env:LOCALAPPDATA 'MuseStudio\profiles'
+$DownloadDir = ''
 
 function Find-Browser {
   $candidates = @(
@@ -37,6 +38,7 @@ function Read-Accounts([string]$Path) {
   $result = @()
   foreach ($raw in (Get-Content -LiteralPath $Path -Encoding UTF8)) {
     $line = $raw.Trim()
+    if ($line -match '^thu-muc\s*=\s*(.+)$') { $script:DownloadDir = $Matches[1].Trim(); continue }
     if (-not $line -or $line.StartsWith('#')) { continue }
     $parts = $line -split '\s+', 2
     $mail = $parts[0]
@@ -53,9 +55,41 @@ function Get-ProfileDir([string]$Mail) {
   return Join-Path $ProfileRoot $name
 }
 
-function Open-Account($Account, [string]$Browser) {
+# Dat thu muc tai ve cho ho so (Chrome doc Default\Preferences khi khoi dong).
+# Neu cua so cua tai khoan dang mo, Chrome se ghi de khi dong: hay dong cua so do truoc.
+function Set-DownloadDir([string]$ProfileDir, [string]$Target) {
+  $prefDir = Join-Path $ProfileDir 'Default'
+  $prefFile = Join-Path $prefDir 'Preferences'
+  try {
+    New-Item -ItemType Directory -Force -Path $Target | Out-Null
+    New-Item -ItemType Directory -Force -Path $prefDir | Out-Null
+    if (Test-Path -LiteralPath $prefFile) {
+      $prefs = Get-Content -LiteralPath $prefFile -Raw -Encoding UTF8 | ConvertFrom-Json
+    } else {
+      $prefs = New-Object PSObject
+    }
+    foreach ($section in @('download', 'savefile')) {
+      if (-not $prefs.PSObject.Properties[$section]) {
+        $prefs | Add-Member -NotePropertyName $section -NotePropertyValue (New-Object PSObject)
+      }
+    }
+    $prefs.download | Add-Member -NotePropertyName 'default_directory' -NotePropertyValue $Target -Force
+    $prefs.download | Add-Member -NotePropertyName 'prompt_for_download' -NotePropertyValue $false -Force
+    $prefs.download | Add-Member -NotePropertyName 'directory_upgrade' -NotePropertyValue $true -Force
+    $prefs.savefile | Add-Member -NotePropertyName 'default_directory' -NotePropertyValue $Target -Force
+    $json = $prefs | ConvertTo-Json -Depth 100 -Compress
+    [System.IO.File]::WriteAllText($prefFile, $json, (New-Object System.Text.UTF8Encoding($false)))
+    Write-Host "  Video se tu luu vao: $Target"
+  } catch {
+    Write-Host "  Khong dat duoc thu muc tai ve tu dong: $($_.Exception.Message)"
+    Write-Host "  Hay dat bang tay trong cua so do: Cai dat > Tai xuong > Vi tri = $Target"
+  }
+}
+
+function Open-Account($Account, [string]$Browser, [int]$Number = 0) {
   $dir = Get-ProfileDir $Account.Email
   New-Item -ItemType Directory -Force -Path $dir | Out-Null
+  if ($DownloadDir -and $Number -gt 0) { Set-DownloadDir $dir (Join-Path $DownloadDir "TK$Number") }
   $browserArgs = @("--user-data-dir=`"$dir`"", '--no-first-run', '--no-default-browser-check', '--new-window', $MuseUrl)
   if ($Account.Link) { $browserArgs += "`"$($Account.Link)`"" }
   Start-Process -FilePath $Browser -ArgumentList $browserArgs
@@ -90,6 +124,7 @@ while ($true) {
   Write-Host '=== MO TAI KHOAN MUSE - MOI TAI KHOAN MOT CUA SO RIENG ==='
   Write-Host "Danh sach: $list"
   Write-Host "Trinh duyet: $browser"
+  if ($DownloadDir) { Write-Host "Thu muc tai ve: $DownloadDir\TK<so>" } else { Write-Host 'Thu muc tai ve: chua dat (nhap trong Muse Studio > Tai khoan)' }
   Write-Host ''
   for ($i = 0; $i -lt $accounts.Count; $i++) {
     $extra = ''
@@ -117,7 +152,7 @@ while ($true) {
   $picked = $picked | Where-Object { $_ -ge 1 -and $_ -le $accounts.Count } | Select-Object -Unique
   if (-not $picked) { Write-Host '  Khong co so hop le.'; continue }
   foreach ($n in $picked) {
-    Open-Account $accounts[$n - 1] $browser
+    Open-Account $accounts[$n - 1] $browser $n
     Start-Sleep -Milliseconds 700
   }
 }

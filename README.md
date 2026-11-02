@@ -82,13 +82,24 @@ Mẹo: trong mỗi cửa sổ, bấm biểu tượng hồ sơ → **Tùy chỉnh
 Muốn tự sửa danh sách bằng tay: xem mẫu `tai-khoan.example.txt` (mỗi dòng: `email [link lấy mã]`).
 `tai-khoan.txt` đã được đưa vào `.gitignore` để email không bị đẩy lên GitHub.
 
-### Bước 3 — Điều phối
+### Bước 3 — Thư mục tải về
 
-1. Nhập prompt và bấm **Thêm vào hàng đợi**.
-2. Bấm **Điều phối**. Tool tự xếp luồng (nếu chưa xếp) và mở **Bảng điều phối**: mỗi tài khoản có danh sách cảnh riêng.
-3. Với từng tài khoản: bấm **Sao chép prompt kế tiếp** → dán vào Muse trong **đúng cửa sổ của tài khoản đó** → bấm tạo → tick **Đã gửi**.
-4. Khi video xong, tải về máy rồi bấm nút nhập (mũi tên lên) ở cảnh đó.
-5. Khi credit thay đổi, sửa số credit trong **Tài khoản** rồi bấm **Xếp lại luồng**. Cảnh đã gửi giữ nguyên tài khoản, chỉ các cảnh chưa gửi được chia lại.
+1. Trong **Tài khoản**, nhập **Thư mục tải về trên máy**, ví dụ `D:\Video Muse`, rồi bấm **Tải danh sách cho MO_TAI_KHOAN.cmd** lần nữa.
+2. **Đóng** các cửa sổ tài khoản đang mở, rồi mở lại bằng `MO_TAI_KHOAN.cmd`. Từ đó mỗi cửa sổ tự lưu file tải về vào `D:\Video Muse\TK1`, `TK2`… mà không hỏi lại.
+   Nếu script báo không đặt được, đặt bằng tay trong cửa sổ đó: **Cài đặt → Tải xuống → Vị trí**.
+3. Trong tool, mở **Điều phối** → **Chọn thư mục** → chọn đúng `D:\Video Muse` → cho phép tool đọc/ghi. Cần dùng Chrome hoặc Edge.
+
+### Bước 4 — Điều phối và trạng thái
+
+Mỗi cảnh có 4 trạng thái: **Chờ**, **Đang chạy**, **Xong**, **Lỗi**.
+
+1. Nhập prompt và bấm **Thêm vào hàng đợi**, rồi bấm **Điều phối**. Tool tự xếp luồng và chia cảnh cho từng tài khoản.
+2. Bấm **Sao chép prompt kế tiếp** của một tài khoản: prompt được sao chép và cảnh chuyển sang **Đang chạy**.
+3. Dán vào Muse trong **đúng cửa sổ của tài khoản đó** và bấm tạo.
+4. Nếu Muse báo lỗi, đổi trạng thái cảnh sang **Lỗi**. Muốn chạy lại thì đổi về **Chờ**.
+5. Khi video xong, bấm tải trên Muse. Rồi trong tool bấm **Quét video mới**: tool tìm file mới trong thư mục và gợi ý gắn vào cảnh **Đang chạy** sớm nhất của đúng tài khoản (theo thư mục `TKn`). Kiểm tra rồi bấm **Gắn các file đã chọn** → cảnh chuyển sang **Xong**.
+6. **Xuất tất cả** lưu mọi video đã xong vào `<thư mục>\_xuat-video\<tên dự án>\canh-01.mp4`, `canh-02.mp4`…
+7. Khi credit thay đổi, sửa số credit trong **Tài khoản** rồi bấm **Xếp lại luồng**. Cảnh Đang chạy/Lỗi/Xong giữ nguyên tài khoản, chỉ các cảnh Chờ được chia lại.
 
 ## Đang hoạt động
 
@@ -101,13 +112,14 @@ Muốn tự sửa danh sách bằng tay: xem mẫu `tai-khoan.example.txt` (mỗ
 - Chỉnh sửa, sao chép, nhân bản, tìm kiếm, lọc, xóa/hoàn tác.
 - Xuất/nhập dự án JSON, xuất prompt TXT.
 - Mở mỗi tài khoản trong hồ sơ trình duyệt riêng (`MO_TAI_KHOAN.cmd`).
-- Bảng điều phối: sao chép prompt kế tiếp cho từng tài khoản, đánh dấu đã gửi, nhập kết quả.
+- Bảng điều phối: sao chép prompt kế tiếp, trạng thái Chờ / Đang chạy / Xong / Lỗi.
+- Thư mục tải về: mỗi cửa sổ tài khoản tự lưu vào `<thư mục>\\TKn`; tool quét, gắn video vào cảnh và xuất tất cả.
 
 ## Chưa hoàn thành
 
 - Tool không tự đăng nhập, không đọc hay nhập mã 6 số (bạn làm trên trang Muse).
 - Chưa đọc số credit thật từ Muse.
-- Không tự gửi yêu cầu tạo ảnh/video, theo dõi tiến độ hoặc tải kết quả từ Muse.
+- Không tự gửi yêu cầu tạo ảnh/video, theo dõi tiến độ hoặc tải kết quả từ Muse. Meta chưa có API chính thức cho Muse Video (kiểm tra 11/2026); trạng thái do bạn cập nhật.
 - “Xếp luồng thử” chỉ tính kế hoạch cho dự án đang chọn, không chạy nền.
 
 Ba tab tạo nội dung là các chế độ chuẩn bị yêu cầu. Chúng chưa kết nối dịch vụ tạo nội dung. Số luồng, chi phí và thời lượng trong giao diện chưa được đối chiếu với giới hạn Muse thực tế.
